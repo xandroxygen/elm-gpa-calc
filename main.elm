@@ -16,18 +16,12 @@ type alias Class =
   , grade: String
   }
 
-addClass: Class -> List Class -> List Class
-addClass class list =
-  class :: list
-
 type alias Model =
   { classes: List Class
   , initialPoints: Float
   , initialHours: Float
   , projectedGPA: Float
-  , currentClassName: String
-  , currentClassHours: Float
-  , currentClassGrade: String
+  , currentClass: Class
   , scale: Scale
   }
 
@@ -42,19 +36,23 @@ getPoints scale class =
 updateGPA: Model -> Model
 updateGPA model =
   let
-    hours = List.map .hours model.classes
-    points = List.map (getPoints model.scale) model.classes
+    hours =
+      List.map .hours model.classes
 
-    totalHours = List.foldr (+) model.initialHours hours
-    totalPoints = List.foldr (+) model.initialPoints points
+    points =
+      List.map (getPoints model.scale) model.classes
+
+    totalHours =
+      List.foldr (+) model.initialHours hours
+
+    totalPoints =
+      List.foldr (+) model.initialPoints points
   in
     { model | projectedGPA = totalPoints / totalHours }
 
 resetCurrentClass: Model -> Model
 resetCurrentClass model =
-  { model | currentClassName = ""
-          , currentClassHours = 0.0
-          , currentClassGrade = "" }
+  { model | currentClass = (Class "" 0.0 "") }
 
 model: Model
 model =
@@ -62,9 +60,7 @@ model =
   , initialPoints = 0.0
   , initialHours = 0
   , projectedGPA = 0.00
-  , currentClassName = ""
-  , currentClassHours = 0.0
-  , currentClassGrade = ""
+  , currentClass = (Class "" 0.0 "")
   , scale = Dict.fromList
     [ ("A", 4.0)
     , ("A-", 3.7)
@@ -94,62 +90,88 @@ type Msg
 
 update: Msg -> Model -> Model
 update msg model =
-  case msg of
-    AddClass ->
-      let
-        class =
-          { name = model.currentClassName
-          , hours = model.currentClassHours
-          , grade = model.currentClassGrade
-          }
-      in
-        { model | classes = addClass class model.classes }
+  let
+      { currentClass } = model
+  in
+    case msg of
+      AddClass ->
+          { model | classes = model.currentClass :: model.classes }
+          |> updateGPA
+          |> resetCurrentClass
+
+      InitialHours hours ->
+        { model | initialHours = Result.withDefault 0 (String.toFloat hours) }
         |> updateGPA
-        |> resetCurrentClass
 
-    InitialHours hours ->
-      { model | initialHours = Result.withDefault 0 (String.toFloat hours) }
-      |> updateGPA
+      InitialPoints points ->
+        { model | initialPoints = Result.withDefault 0 (String.toFloat points) }
+        |> updateGPA
 
-    InitialPoints points ->
-      { model | initialPoints = Result.withDefault 0 (String.toFloat points) }
-      |> updateGPA
+      ClassName name ->
+          { model
+            | currentClass =
+              { currentClass
+                | name = name
+              }
+          }
 
-    ClassName name ->
-      { model | currentClassName = name }
+      ClassHours hours ->
+          { model
+            | currentClass =
+              { currentClass
+                | hours = Result.withDefault 0 (String.toFloat hours)
+              }
+          }
 
-    ClassHours hours ->
-      { model | currentClassHours = Result.withDefault 0 (String.toFloat hours) }
-
-    ClassGrade grade ->
-      { model | currentClassGrade = grade }
+      ClassGrade grade ->
+          { model
+            | currentClass =
+              { currentClass
+                | grade = grade
+              }
+          }
 
 -- VIEW
 
 view: Model -> Html Msg
 view model =
   div []
-    [ input [ type_ "text", placeholder "Initial credit hours", onInput InitialHours ] []
-    , input [ type_ "text", placeholder "Initial points", onInput InitialPoints ] []
+    [ initialData model
     , newClass model
     , ul [] (List.map viewClass model.classes)
     , div [] [ text (toString model.projectedGPA) ]
     ]
 
+initialData: Model -> Html Msg
+initialData model =
+  div []
+    [ textInput "Initial Credit Hours" InitialHours (toEmptyString model.initialHours)
+    , textInput "Initial Points" InitialPoints (toEmptyString model.initialPoints)
+    ]
+
 newClass: Model -> Html Msg
 newClass model =
   div []
-    [ input [ type_ "text", placeholder "Class Name", onInput ClassName] []
-    , input [ type_ "text", placeholder "Class Hours", onInput ClassHours ] []
-    , input [ type_ "text", placeholder "Class Grade", onInput ClassGrade] []
+    [ textInput "Class Name" ClassName model.currentClass.name
+    , textInput "Class Hours" ClassHours (toEmptyString model.currentClass.hours)
+    , textInput "Class Grade" ClassGrade model.currentClass.grade
     , button [ onClick AddClass ] [ text "Add Class" ]
     ]
 
 viewClass: Class -> Html Msg
 viewClass class =
   li []
-    [ text class.name
-    , text class.grade
-    , text (toString class.hours)
+    [ div [] [ text class.name ]
+    , div [] [ text class.grade ]
+    , div [] [ text (toString class.hours) ]
     ]
 
+textInput: String -> (String -> Msg) -> String -> Html Msg
+textInput name msg v  =
+  input [ type_ "text", placeholder name, onInput msg, value v ] []
+
+toEmptyString: Float -> String
+toEmptyString float =
+  if float == 0.0
+  then ""
+  else toString float
