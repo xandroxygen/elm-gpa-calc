@@ -2,6 +2,8 @@ import Html exposing (..)
 import Html.Events exposing (..)
 import Html.Attributes exposing (..)
 import Dict exposing (Dict, get)
+import Round exposing (round)
+import Json.Decode as Json
 
 main =
   Html.beginnerProgram { model = model, view = view, update = update }
@@ -139,7 +141,7 @@ view model =
     [ initialData model
     , newClass model
     , ul [] (List.map viewClass model.classes)
-    , div [] [ text (toString model.projectedGPA) ]
+    , div [] [ text (Round.round 2 model.projectedGPA) ]
     ]
 
 initialData: Model -> Html Msg
@@ -163,12 +165,16 @@ viewClass class =
   li []
     [ div [] [ text class.name ]
     , div [] [ text class.grade ]
-    , div [] [ text (toString class.hours) ]
+    , div [] [ text (Round.round 1 class.hours) ]
     ]
 
 textInput: String -> (String -> Msg) -> String -> Html Msg
 textInput name msg v  =
-  input [ type_ "text", placeholder name, onInput msg, value v ] []
+  input [ type_ "text" , placeholder name, onBlurWithTargetValue msg, value v ] []
+
+onBlurWithTargetValue : (String -> msg) -> Attribute msg
+onBlurWithTargetValue tagger =
+    on "blur" (Json.map tagger targetValue)
 
 toEmptyString: Float -> String
 toEmptyString float =
