@@ -150,7 +150,7 @@ update msg model =
           { model
             | currentClass =
               { currentClass
-                | grade = grade
+                | grade = String.toUpper grade
               }
           }
 
